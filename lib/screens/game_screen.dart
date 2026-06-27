@@ -406,7 +406,7 @@ class _CompactScoringGrid extends StatelessWidget {
           _buttonRow([
             _comboBtn('Four of a Kind', allCombos[8],  AppTheme.fourColor),
             _comboBtn('Five of a Kind', allCombos[9],  AppTheme.fourColor),
-            _comboBtn('Farkle! (Six of a Kind)', allCombos[10], AppTheme.fourColor),
+            _comboBtn('Farkle! (All Six)', allCombos[10], AppTheme.fourColor),
           ]),
 
           _groupDivider('Special', AppTheme.specialColor),
@@ -649,11 +649,16 @@ class _ActionButton extends StatelessWidget {
                       letterSpacing: 1)),
             ],
           ),
-          if (sublabel.isNotEmpty)
-            Text(sublabel,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: dimmed ? Colors.white24 : Colors.white70)),
+          // Fixed-height slot keeps both buttons identical regardless of sublabel
+          SizedBox(
+            height: 16,
+            child: sublabel.isNotEmpty
+                ? Text(sublabel,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: dimmed ? Colors.white24 : Colors.white70))
+                : null,
+          ),
         ],
       ),
     );
