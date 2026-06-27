@@ -83,12 +83,20 @@ class _GameScreenState extends State<GameScreen>
         return Scaffold(
           backgroundColor: AppTheme.darkBg,
           appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'New Game',
+              onPressed: () => _confirmNewGame(context, game),
+            ),
             title: const Text('🎲 FARKLE FRENZY'),
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'New Game',
-                onPressed: () => _confirmNewGame(context, game),
+                icon: Icon(
+                  Icons.undo_rounded,
+                  color: game.canUndo ? AppTheme.accentGold : Colors.white24,
+                ),
+                tooltip: 'Undo',
+                onPressed: game.canUndo ? game.undo : null,
               ),
             ],
             bottom: TabBar(
@@ -501,20 +509,6 @@ class _ActionBar extends StatelessWidget {
               color: AppTheme.accentRed,
               icon: Icons.close_rounded,
               onPressed: () => _handleBust(context),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 3,
-            child: _ActionButton(
-              label: 'UNDO',
-              sublabel: '',
-              color: game.canUndo
-                  ? const Color(0xFF455A64)
-                  : const Color(0xFF263238),
-              icon: Icons.undo_rounded,
-              onPressed: game.canUndo ? game.undo : null,
-              dimmed: !game.canUndo,
             ),
           ),
           const SizedBox(width: 8),
