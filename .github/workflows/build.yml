@@ -60,6 +60,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.4'
