@@ -197,6 +197,14 @@ class _PlayerHeader extends StatelessWidget {
     final isPassed = game.isPassed;
     final ownerColor = _colorFor(game.rotationOwnerIndex);
 
+    // Leader status — only meaningful when at least one player has scored
+    final allZero = game.players.every((p) => p.totalScore == 0);
+    final otherBest = game.players
+        .where((p) => p.name != scorer.name)
+        .fold<int>(0, (best, p) => p.totalScore > best ? p.totalScore : best);
+    final myScore = scorer.totalScore;
+    final leaderDiff = myScore - otherBest;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -208,6 +216,27 @@ class _PlayerHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Leader status line
+          if (!allZero) ...[
+            Text(
+              leaderDiff > 0
+                  ? 'Current leader by $leaderDiff pts'
+                  : leaderDiff == 0
+                      ? 'Tied for the lead'
+                      : '${(-leaderDiff)} pts behind the leader',
+              style: TextStyle(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: leaderDiff > 0
+                    ? AppTheme.accentGold
+                    : leaderDiff == 0
+                        ? Colors.white54
+                        : Colors.redAccent,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+
           Row(
             children: [
               // Active scorer name + total
@@ -234,6 +263,18 @@ class _PlayerHeader extends StatelessWidget {
                         if (scorer.totalScore >= game.winningScore)
                           const Text('  👑',
                               style: TextStyle(fontSize: 12)),
+                        if (turnScore > 0) ...[
+                          const Text('   →',
+                              style: TextStyle(fontSize: 12, color: Colors.white38)),
+                          Text(
+                            '  If Banked: ${scorer.totalScore + turnScore}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -365,7 +406,7 @@ class _CompactScoringGrid extends StatelessWidget {
           _buttonRow([
             _comboBtn('Four of a Kind', allCombos[8],  AppTheme.fourColor),
             _comboBtn('Five of a Kind', allCombos[9],  AppTheme.fourColor),
-            _comboBtn('Six of a Kind',  allCombos[10], AppTheme.fourColor),
+            _comboBtn('Farkle! (Six of a Kind)', allCombos[10], AppTheme.fourColor),
           ]),
 
           _groupDivider('Special', AppTheme.specialColor),
@@ -490,7 +531,7 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final canBank = game.meetsOpeningRequirement && game.currentTurnScore > 0;
     final bustLabel =
-        game.currentTurnScore > 0 ? 'Lose ${game.currentTurnScore}' : 'Pass';
+        game.currentTurnScore > 0 ? 'Lose ${game.currentTurnScore}' : '';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -516,7 +557,7 @@ class _ActionBar extends StatelessWidget {
             flex: 5,
             child: _ActionButton(
               label: 'BANK',
-              sublabel: canBank ? '+${game.currentTurnScore}' : '—',
+              sublabel: canBank ? '+${game.currentTurnScore}' : '',
               color: canBank ? AppTheme.feltGreen : const Color(0xFF1B3320),
               icon: Icons.savings_rounded,
               onPressed: canBank ? game.bank : null,
@@ -589,7 +630,7 @@ class _ActionButton extends StatelessWidget {
         disabledBackgroundColor: color,
         disabledForegroundColor: Colors.white30,
         elevation: dimmed ? 0 : 3,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 24),
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
