@@ -77,9 +77,9 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows
-        env:
-          CMAKE_GENERATOR: "Visual Studio 17 2022"
         run: flutter build windows --release
+        env:
+          CMAKE_GENERATOR: Ninja
 
       - name: Zip release folder
         shell: pwsh
