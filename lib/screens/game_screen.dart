@@ -15,8 +15,10 @@ const List<Color> _playerColors = [
   Color(0xFF6D4C41),
 ];
 
+Color _colorFor(int index) => _playerColors[index % _playerColors.length];
+
 // ---------------------------------------------------------------------------
-// Main Game Screen — tabbed: Scoring | Leaderboard
+// Main Game Screen
 // ---------------------------------------------------------------------------
 
 class GameScreen extends StatefulWidget {
@@ -78,9 +80,6 @@ class _GameScreenState extends State<GameScreen>
           return const GameOverScreen();
         }
 
-        final playerColor =
-            _playerColors[game.currentPlayerIndex % _playerColors.length];
-
         return Scaffold(
           backgroundColor: AppTheme.darkBg,
           appBar: AppBar(
@@ -108,10 +107,15 @@ class _GameScreenState extends State<GameScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                // ── Tab 1: Active Scoring ──
-                _ScoringTab(game: game, playerColor: playerColor),
-                // ── Tab 2: Leaderboard ──
-                _LeaderboardTab(game: game),
+                _ScoringTab(game: game),
+                _LeaderboardTab(
+                  game: game,
+                  onPassTo: (idx) {
+                    game.passTurnTo(idx);
+                    // Switch back to scoring tab after pass
+                    _tabController.animateTo(0);
+                  },
+                ),
               ],
             ),
           ),
@@ -127,12 +131,12 @@ class _GameScreenState extends State<GameScreen>
 
 class _ScoringTab extends StatelessWidget {
   final GameModel game;
-  final Color playerColor;
-
-  const _ScoringTab({required this.game, required this.playerColor});
+  const _ScoringTab({required this.game});
 
   @override
   Widget build(BuildContext context) {
+    final scorerColor = _colorFor(game.activeScorerIndex);
+
     return Column(
       children: [
         // Last Round banner
@@ -153,129 +157,163 @@ class _ScoringTab extends StatelessWidget {
             ),
           ),
 
-        // Compact player header
-        _PlayerHeader(
-          game: game,
-          playerColor: playerColor,
-        ),
+        // Player header
+        _PlayerHeader(game: game, scorerColor: scorerColor),
 
-        // Scoring buttons — compact grid, no section headers
-        Expanded(
-          child: _CompactScoringGrid(game: game),
-        ),
+        // Scoring buttons
+        Expanded(child: _CompactScoringGrid(game: game)),
 
-        // Bank / Undo / Bust bar
-        _ActionBar(game: game, playerColor: playerColor),
+        // Bank / Undo / Bust
+        _ActionBar(game: game),
       ],
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Compact player header
+// Player header — shows active scorer + rotation owner when passed
 // ---------------------------------------------------------------------------
 
 class _PlayerHeader extends StatelessWidget {
   final GameModel game;
-  final Color playerColor;
+  final Color scorerColor;
 
-  const _PlayerHeader({required this.game, required this.playerColor});
+  const _PlayerHeader({required this.game, required this.scorerColor});
 
   @override
   Widget build(BuildContext context) {
-    final player = game.currentPlayer;
+    final scorer = game.activeScorer;
     final turnScore = game.currentTurnScore;
     final meetsOpening = game.meetsOpeningRequirement;
-    final hasOpened = game.currentPlayerHasOpened;
+    final hasOpened = game.activeScorerHasOpened;
+    final isPassed = game.isPassed;
+    final ownerColor = _colorFor(game.rotationOwnerIndex);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
-        color: playerColor.withValues(alpha: 0.15),
+        color: scorerColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: playerColor, width: 1.5),
+        border: Border.all(color: scorerColor, width: 1.5),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Player name + total
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  player.name,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: playerColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Row(
+          Row(
+            children: [
+              // Active scorer name + total
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Total: ${player.totalScore}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
+                      scorer.name,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: scorerColor,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    if (player.totalScore >= game.winningScore)
-                      const Text('  👑',
-                          style: TextStyle(fontSize: 12)),
+                    Row(
+                      children: [
+                        Text(
+                          'Total: ${scorer.totalScore}',
+                          style: const TextStyle(
+                              fontSize: 13, color: Colors.white70),
+                        ),
+                        if (scorer.totalScore >= game.winningScore)
+                          const Text('  👑',
+                              style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
 
-          // Opening requirement chip — only while not yet opened
-          if (!hasOpened)
-            Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: meetsOpening
-                    ? Colors.green.withValues(alpha: 0.25)
-                    : Colors.orange.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: meetsOpening ? Colors.greenAccent : Colors.orange,
+              // Opening requirement chip
+              if (!hasOpened)
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: meetsOpening
+                        ? Colors.green.withValues(alpha: 0.25)
+                        : Colors.orange.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color:
+                          meetsOpening ? Colors.greenAccent : Colors.orange,
+                    ),
+                  ),
+                  child: Text(
+                    meetsOpening ? '✓ Can bank' : 'Need 500',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: meetsOpening
+                          ? Colors.greenAccent
+                          : Colors.orange,
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                meetsOpening ? '✓ Can bank' : 'Need 500',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: meetsOpening ? Colors.greenAccent : Colors.orange,
-                ),
-              ),
-            ),
 
-          // Turn score
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text(
-                'TURN',
-                style: TextStyle(
-                  fontSize: 9,
-                  color: Colors.white38,
-                  letterSpacing: 2,
-                ),
-              ),
-              Text(
-                '$turnScore',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: turnScore > 0 ? AppTheme.accentGold : Colors.white24,
-                ),
+              // Turn score
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'TURN',
+                    style: TextStyle(
+                        fontSize: 9, color: Colors.white38, letterSpacing: 2),
+                  ),
+                  Text(
+                    '$turnScore',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      color: turnScore > 0
+                          ? AppTheme.accentGold
+                          : Colors.white24,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+
+          // Pass indicator — shown only when dice have been passed
+          if (isPassed) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: ownerColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                    color: ownerColor.withValues(alpha: 0.6)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.swap_horiz_rounded,
+                      size: 14, color: ownerColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${game.rotationOwner.name}\'s turn — passed to ${scorer.name}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: ownerColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -283,7 +321,7 @@ class _PlayerHeader extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Compact scoring grid — all buttons, no section headers, color-grouped
+// Compact scoring grid
 // ---------------------------------------------------------------------------
 
 class _CompactScoringGrid extends StatelessWidget {
@@ -297,14 +335,12 @@ class _CompactScoringGrid extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Singles row ──────────────────────────────────────────────────
           _groupDivider('Singles', AppTheme.singlesColor),
           _buttonRow([
             _comboBtn('Single 1', allCombos[0], AppTheme.singlesColor),
             _comboBtn('Single 5', allCombos[1], AppTheme.singlesColor),
           ]),
 
-          // ── Three of a Kind ──────────────────────────────────────────────
           _groupDivider('Three of a Kind', AppTheme.threeColor),
           _buttonRow([
             _comboBtn('Three Ones',   allCombos[2], AppTheme.threeColor),
@@ -317,7 +353,6 @@ class _CompactScoringGrid extends StatelessWidget {
             _comboBtn('Three Sixes', allCombos[7], AppTheme.threeColor),
           ]),
 
-          // ── Multiples ────────────────────────────────────────────────────
           _groupDivider('4 / 5 / 6 of a Kind', AppTheme.fourColor),
           _buttonRow([
             _comboBtn('Four of a Kind', allCombos[8],  AppTheme.fourColor),
@@ -325,12 +360,11 @@ class _CompactScoringGrid extends StatelessWidget {
             _comboBtn('Six of a Kind',  allCombos[10], AppTheme.fourColor),
           ]),
 
-          // ── Special ──────────────────────────────────────────────────────
           _groupDivider('Special', AppTheme.specialColor),
           _buttonRow([
-            _comboBtn('Small\nStraight',  allCombos[11], AppTheme.specialColor),
-            _comboBtn('Large\nStraight',  allCombos[12], AppTheme.specialColor),
-            _comboBtn('Three\nPairs',     allCombos[13], AppTheme.specialColor),
+            _comboBtn('Small\nStraight',    allCombos[11], AppTheme.specialColor),
+            _comboBtn('Large\nStraight',    allCombos[12], AppTheme.specialColor),
+            _comboBtn('Three\nPairs',       allCombos[13], AppTheme.specialColor),
           ]),
           _buttonRow([
             _comboBtn('Farkle\nFull House', allCombos[14], AppTheme.specialColor),
@@ -348,19 +382,19 @@ class _CompactScoringGrid extends StatelessWidget {
       padding: const EdgeInsets.only(top: 6, bottom: 3),
       child: Row(
         children: [
-          Container(width: 3, height: 13, color: color,
+          Container(
+              width: 3, height: 13, color: color,
               margin: const EdgeInsets.only(right: 6)),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: color,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-          ),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5)),
           const SizedBox(width: 6),
-          Expanded(child: Divider(color: color.withValues(alpha: 0.3), height: 1)),
+          Expanded(
+              child: Divider(
+                  color: color.withValues(alpha: 0.3), height: 1)),
         ],
       ),
     );
@@ -389,7 +423,7 @@ class _CompactScoringGrid extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Individual combo button — label only, no point value
+// Combo button — label only
 // ---------------------------------------------------------------------------
 
 class _ComboButton extends StatelessWidget {
@@ -442,16 +476,13 @@ class _ComboButton extends StatelessWidget {
 
 class _ActionBar extends StatelessWidget {
   final GameModel game;
-  final Color playerColor;
-
-  const _ActionBar({required this.game, required this.playerColor});
+  const _ActionBar({required this.game});
 
   @override
   Widget build(BuildContext context) {
     final canBank = game.meetsOpeningRequirement && game.currentTurnScore > 0;
-    final bustLabel = game.currentTurnScore > 0
-        ? 'Lose ${game.currentTurnScore}'
-        : 'Pass';
+    final bustLabel =
+        game.currentTurnScore > 0 ? 'Lose ${game.currentTurnScore}' : 'Pass';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -462,7 +493,6 @@ class _ActionBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // BUST
           Expanded(
             flex: 5,
             child: _ActionButton(
@@ -474,8 +504,6 @@ class _ActionBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-
-          // UNDO — narrower
           Expanded(
             flex: 3,
             child: _ActionButton(
@@ -490,8 +518,6 @@ class _ActionBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-
-          // BANK
           Expanded(
             flex: 5,
             child: _ActionButton(
@@ -570,7 +596,8 @@ class _ActionButton extends StatelessWidget {
         disabledForegroundColor: Colors.white30,
         elevation: dimmed ? 0 : 3,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -580,24 +607,18 @@ class _ActionButton extends StatelessWidget {
             children: [
               Icon(icon, size: 18),
               const SizedBox(width: 5),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1)),
             ],
           ),
           if (sublabel.isNotEmpty)
-            Text(
-              sublabel,
-              style: TextStyle(
-                fontSize: 11,
-                color: dimmed ? Colors.white24 : Colors.white70,
-              ),
-            ),
+            Text(sublabel,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: dimmed ? Colors.white24 : Colors.white70)),
         ],
       ),
     );
@@ -605,12 +626,17 @@ class _ActionButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Tab 2: Leaderboard
+// Tab 2: Leaderboard — tap a player to pass them the dice
 // ---------------------------------------------------------------------------
 
 class _LeaderboardTab extends StatelessWidget {
   final GameModel game;
-  const _LeaderboardTab({required this.game});
+  final void Function(int playerIndex) onPassTo;
+
+  const _LeaderboardTab({
+    required this.game,
+    required this.onPassTo,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -627,34 +653,37 @@ class _LeaderboardTab extends StatelessWidget {
               '🔔  LAST ROUND — Push Your Luck!',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12),
             ),
           ),
 
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
           child: Row(
             children: [
-              Text(
-                'Standings',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.accentGold,
-                ),
-              ),
+              Text('Standings',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.accentGold)),
               const Spacer(),
-              Text(
-                'Target: ${game.winningScore}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Colors.white38,
-                ),
-              ),
+              Text('Target: ${game.winningScore}',
+                  style: const TextStyle(fontSize: 13, color: Colors.white38)),
             ],
+          ),
+        ),
+
+        // Pass hint
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            'Tap a player to pass them the dice',
+            style: TextStyle(
+                fontSize: 11,
+                color: Colors.white38,
+                fontStyle: FontStyle.italic),
           ),
         ),
 
@@ -666,118 +695,191 @@ class _LeaderboardTab extends StatelessWidget {
               final p = sorted[rank];
               final originalIdx =
                   game.players.indexWhere((pl) => pl.name == p.name);
-              final pColor =
-                  _playerColors[originalIdx % _playerColors.length];
-              final isCurrent = p.name == game.currentPlayer.name;
+              final pColor = _colorFor(originalIdx);
+
+              final isActiveScorer = originalIdx == game.activeScorerIndex;
+              final isRotationOwner = originalIdx == game.rotationOwnerIndex;
               final isOver = p.totalScore >= game.winningScore;
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                decoration: BoxDecoration(
-                  color: isCurrent
-                      ? pColor.withValues(alpha: 0.18)
-                      : AppTheme.surfaceCard,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isCurrent ? pColor : Colors.white12,
-                    width: isCurrent ? 2 : 1,
+              // Can't pass to yourself (the current active scorer)
+              final canPassTo = !isActiveScorer;
+
+              return GestureDetector(
+                onTap: canPassTo
+                    ? () => _confirmPass(context, originalIdx, p.name)
+                    : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: isActiveScorer
+                        ? pColor.withValues(alpha: 0.22)
+                        : canPassTo
+                            ? AppTheme.surfaceCard
+                            : AppTheme.surfaceCard.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isActiveScorer
+                          ? pColor
+                          : canPassTo
+                              ? Colors.white24
+                              : Colors.white12,
+                      width: isActiveScorer ? 2 : 1,
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    // Rank
-                    SizedBox(
-                      width: 32,
-                      child: Text(
-                        rank == 0
-                            ? '🥇'
-                            : rank == 1
-                                ? '🥈'
-                                : rank == 2
-                                    ? '🥉'
-                                    : ' ${rank + 1}.',
-                        style: const TextStyle(fontSize: 20),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Color dot
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: pColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Name
-                    Expanded(
-                      child: Text(
-                        p.name,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: isCurrent
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: Colors.white,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    // Active turn indicator
-                    if (isCurrent)
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: pColor.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: pColor),
-                        ),
+                  child: Row(
+                    children: [
+                      // Rank
+                      SizedBox(
+                        width: 32,
                         child: Text(
-                          'ACTIVE',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: pColor,
-                            letterSpacing: 1,
-                          ),
+                          rank == 0
+                              ? '🥇'
+                              : rank == 1
+                                  ? '🥈'
+                                  : rank == 2
+                                      ? '🥉'
+                                      : ' ${rank + 1}.',
+                          style: const TextStyle(fontSize: 20),
+                          textAlign: TextAlign.center,
                         ),
                       ),
-                    // Score
-                    Text(
-                      '${p.totalScore}',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isOver ? AppTheme.accentGold : Colors.white,
+                      const SizedBox(width: 8),
+                      // Color dot
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                            color: pColor, shape: BoxShape.circle),
                       ),
-                    ),
-                    if (isOver)
-                      const Text(' 👑', style: TextStyle(fontSize: 14)),
-                  ],
+                      const SizedBox(width: 10),
+                      // Name
+                      Expanded(
+                        child: Text(
+                          p.name,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: isActiveScorer
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: canPassTo
+                                ? Colors.white
+                                : Colors.white38,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+
+                      // Status badges
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isActiveScorer)
+                            _badge('SCORING', pColor),
+                          if (isRotationOwner && !isActiveScorer)
+                            _badge("TURN OWNER",
+                                _colorFor(game.rotationOwnerIndex)),
+                          if (!isActiveScorer && canPassTo)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Icon(Icons.swap_horiz_rounded,
+                                  size: 16, color: Colors.white24),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 6),
+
+                      // Score
+                      Text(
+                        '${p.totalScore}',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isOver
+                              ? AppTheme.accentGold
+                              : Colors.white,
+                        ),
+                      ),
+                      if (isOver)
+                        const Text(' 👑',
+                            style: TextStyle(fontSize: 14)),
+                    ],
+                  ),
                 ),
               );
             },
           ),
         ),
 
-        // Current player's turn score — quick ref at bottom
+        // Footer: current turn info
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          padding:
+              const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           color: AppTheme.surfaceDark,
           child: Text(
-            '${game.currentPlayer.name}\'s turn — ${game.currentTurnScore} pts accumulated',
+            game.isPassed
+                ? '${game.rotationOwner.name}\'s turn  •  ${game.activeScorer.name} is scoring  •  ${game.currentTurnScore} pts built'
+                : '${game.activeScorer.name}\'s turn  •  ${game.currentTurnScore} pts built',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: Colors.white54),
+            style: const TextStyle(fontSize: 12, color: Colors.white54),
           ),
         ),
       ],
+    );
+  }
+
+  void _confirmPass(BuildContext context, int idx, String name) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.surfaceCard,
+        title: Text('Pass to $name?'),
+        content: Text(
+          game.currentTurnScore > 0
+              ? 'Pass the dice to $name. They\'ll continue building on the current ${game.currentTurnScore} pts.'
+              : 'Pass the dice to $name. They\'ll start scoring from 0.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onPassTo(idx);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.feltGreen,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Pass to $name'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _badge(String label, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(left: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: color,
+            letterSpacing: 0.8),
+      ),
     );
   }
 }

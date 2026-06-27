@@ -50,7 +50,7 @@ const List<ScoringCombo> allCombos = [
 class Player {
   final String name;
   int totalScore;
-  bool hasOpenedScoring; // Has the player met the 500-pt opening requirement?
+  bool hasOpenedScoring;
 
   Player({
     required this.name,
@@ -75,20 +75,22 @@ class Player {
 // Turn action — used for undo history
 // ---------------------------------------------------------------------------
 
-enum TurnActionType { addScore, bank, bust }
+enum TurnActionType { addScore, bank, bust, pass }
 
 class TurnAction {
   final TurnActionType type;
-  final int pointsBefore; // turn score before this action
-  final ScoringCombo? combo; // which combo was added (null for bank/bust)
-  final int playerIndexBefore; // which player was active
-  final List<Player> playerStatesBefore; // snapshot of all player scores
+  final int pointsBefore;
+  final ScoringCombo? combo;
+  final int rotationOwnerIndexBefore;  // whose turn it is in sequence
+  final int activeScorerIndexBefore;   // who is actually holding the dice
+  final List<Player> playerStatesBefore;
 
   TurnAction({
     required this.type,
     required this.pointsBefore,
     this.combo,
-    required this.playerIndexBefore,
+    required this.rotationOwnerIndexBefore,
+    required this.activeScorerIndexBefore,
     required this.playerStatesBefore,
   });
 }
@@ -111,26 +113,57 @@ class GameModel extends ChangeNotifier {
 
   // Runtime state
   GamePhase phase = GamePhase.setup;
-  int currentPlayerIndex = 0;
+
+  /// The player whose position it is in the rotation sequence.
+  /// After bank/bust, play advances to the player after this one.
+  int rotationOwnerIndex = 0;
+
+  /// The player currently holding the dice and scoring.
+  /// May differ from rotationOwnerIndex when a pass has occurred.
+  int activeScorerIndex = 0;
+
   int currentTurnScore = 0;
 
   // Last round tracking
-  int? lastRoundStartPlayerIndex; // the player who triggered the last round
+  int? lastRoundStartPlayerIndex;
   bool lastRoundInProgress = false;
 
   // Undo stack
   final List<TurnAction> _undoStack = [];
 
   // ---------------------------------------------------------------------------
-  // Setup helpers
+  // Convenience getters
+  // ---------------------------------------------------------------------------
+
+  /// The player whose turn it is in the rotation (may have passed the dice).
+  Player get rotationOwner => players[rotationOwnerIndex];
+
+  /// The player currently scoring (may be different after a pass).
+  Player get activeScorer => players[activeScorerIndex];
+
+  /// True when dice have been passed to someone other than the rotation owner.
+  bool get isPassed => activeScorerIndex != rotationOwnerIndex;
+
+  bool get activeScorerHasOpened => activeScorer.hasOpenedScoring;
+
+  bool get meetsOpeningRequirement =>
+      activeScorer.hasOpenedScoring ||
+      currentTurnScore >= openingScoreRequirement;
+
+  // Legacy accessor — used by UI that just wants "current player"
+  Player get currentPlayer => activeScorer;
+  int get currentPlayerIndex => activeScorerIndex;
+  bool get currentPlayerHasOpened => activeScorerHasOpened;
+
+  // ---------------------------------------------------------------------------
+  // Setup
   // ---------------------------------------------------------------------------
 
   void initGame(List<String> playerNames, int targetScore) {
-    players = playerNames
-        .map((name) => Player(name: name.trim()))
-        .toList();
+    players = playerNames.map((name) => Player(name: name.trim())).toList();
     winningScore = targetScore;
-    currentPlayerIndex = 0;
+    rotationOwnerIndex = 0;
+    activeScorerIndex = 0;
     currentTurnScore = 0;
     phase = GamePhase.playing;
     lastRoundInProgress = false;
@@ -140,22 +173,19 @@ class GameModel extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Accessors
+  // Pass turn to another player
   // ---------------------------------------------------------------------------
 
-  Player get currentPlayer => players[currentPlayerIndex];
+  /// Pass the active scoring role to [targetIndex].
+  /// Blocked if targetIndex == activeScorerIndex (can't pass to yourself).
+  /// rotationOwnerIndex never changes during a pass chain.
+  void passTurnTo(int targetIndex) {
+    assert(targetIndex != activeScorerIndex, 'Cannot pass to yourself');
+    if (targetIndex == activeScorerIndex) return;
 
-  bool get currentPlayerHasOpened => currentPlayer.hasOpenedScoring;
-
-  /// Returns true if the current turn score meets the opening requirement
-  /// (or the player has already opened).
-  bool get meetsOpeningRequirement =>
-      currentPlayer.hasOpenedScoring ||
-      currentTurnScore >= openingScoreRequirement;
-
-  String get phaseLabel {
-    if (lastRoundInProgress) return 'LAST ROUND';
-    return '';
+    _pushUndo(TurnActionType.pass);
+    activeScorerIndex = targetIndex;
+    notifyListeners();
   }
 
   // ---------------------------------------------------------------------------
@@ -169,16 +199,17 @@ class GameModel extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Bank
+  // Bank — credits the ACTIVE SCORER, then advances from ROTATION OWNER
   // ---------------------------------------------------------------------------
 
   void bank() {
-    if (!meetsOpeningRequirement) return; // enforce opening rule
+    if (!meetsOpeningRequirement) return;
 
     _pushUndo(TurnActionType.bank);
 
-    players[currentPlayerIndex] = currentPlayer.copyWith(
-      totalScore: currentPlayer.totalScore + currentTurnScore,
+    // Credit goes to whoever is holding the dice
+    players[activeScorerIndex] = activeScorer.copyWith(
+      totalScore: activeScorer.totalScore + currentTurnScore,
       hasOpenedScoring: true,
     );
 
@@ -186,47 +217,48 @@ class GameModel extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Bust
+  // Bust — no credit, advance from rotation owner
   // ---------------------------------------------------------------------------
 
   void bust() {
     _pushUndo(TurnActionType.bust);
-    // Turn score is lost — do NOT add to player total
     _checkAndAdvance();
   }
 
   // ---------------------------------------------------------------------------
-  // Internal: advance turn / handle last round logic
+  // Internal: check last-round trigger, then advance rotation
   // ---------------------------------------------------------------------------
 
   void _checkAndAdvance() {
-    // Check if any player just crossed the winning threshold
-    final justBanked = players[currentPlayerIndex];
-    if (!lastRoundInProgress && justBanked.totalScore >= winningScore) {
-      // Trigger last round — everyone else gets one more turn
+    // Check if the bank just pushed anyone over the winning score
+    final anyOver = players.any((p) => p.totalScore >= winningScore);
+    if (!lastRoundInProgress && anyOver) {
       lastRoundInProgress = true;
-      lastRoundStartPlayerIndex = currentPlayerIndex;
+      // The rotation owner is the one whose "turn slot" triggered the last round
+      lastRoundStartPlayerIndex = rotationOwnerIndex;
       phase = GamePhase.lastRound;
     }
 
-    _advancePlayer();
+    _advanceRotation();
   }
 
-  void _advancePlayer() {
+  void _advanceRotation() {
     currentTurnScore = 0;
-    final nextIndex = (currentPlayerIndex + 1) % players.length;
+    final nextIndex = (rotationOwnerIndex + 1) % players.length;
 
     if (lastRoundInProgress) {
-      // Last round ends when we cycle back to the player who triggered it
       if (nextIndex == lastRoundStartPlayerIndex) {
-        currentPlayerIndex = nextIndex;
+        // Full circle completed — game over
+        rotationOwnerIndex = nextIndex;
+        activeScorerIndex = nextIndex;
         phase = GamePhase.gameOver;
         notifyListeners();
         return;
       }
     }
 
-    currentPlayerIndex = nextIndex;
+    rotationOwnerIndex = nextIndex;
+    activeScorerIndex = nextIndex; // reset pass — new turn owner holds their own dice
     notifyListeners();
   }
 
@@ -240,7 +272,7 @@ class GameModel extends ChangeNotifier {
     if (_undoStack.isEmpty) return;
     final action = _undoStack.removeLast();
 
-    // Restore player states
+    // Restore player scores
     players = action.playerStatesBefore
         .map((p) => Player(
               name: p.name,
@@ -249,14 +281,13 @@ class GameModel extends ChangeNotifier {
             ))
         .toList();
 
-    // Restore turn score and player index
     currentTurnScore = action.pointsBefore;
-    currentPlayerIndex = action.playerIndexBefore;
+    rotationOwnerIndex = action.rotationOwnerIndexBefore;
+    activeScorerIndex = action.activeScorerIndexBefore;
 
-    // If undoing a bank/bust that triggered last round, roll back last round state
+    // Roll back last-round state if needed
     if (action.type == TurnActionType.bank ||
         action.type == TurnActionType.bust) {
-      // Re-evaluate last round state from restored scores
       final anyOver = players.any((p) => p.totalScore >= winningScore);
       if (!anyOver) {
         lastRoundInProgress = false;
@@ -281,7 +312,8 @@ class GameModel extends ChangeNotifier {
       type: type,
       pointsBefore: currentTurnScore,
       combo: combo,
-      playerIndexBefore: currentPlayerIndex,
+      rotationOwnerIndexBefore: rotationOwnerIndex,
+      activeScorerIndexBefore: activeScorerIndex,
       playerStatesBefore: players
           .map((p) => Player(
                 name: p.name,
@@ -293,13 +325,11 @@ class GameModel extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Winner determination
+  // Winner / standings
   // ---------------------------------------------------------------------------
 
-  Player get winner {
-    return players.reduce(
-        (a, b) => a.totalScore >= b.totalScore ? a : b);
-  }
+  Player get winner =>
+      players.reduce((a, b) => a.totalScore >= b.totalScore ? a : b);
 
   List<Player> get sortedPlayers {
     final sorted = List<Player>.from(players);
@@ -313,7 +343,8 @@ class GameModel extends ChangeNotifier {
 
   void resetGame() {
     players = [];
-    currentPlayerIndex = 0;
+    rotationOwnerIndex = 0;
+    activeScorerIndex = 0;
     currentTurnScore = 0;
     phase = GamePhase.setup;
     lastRoundInProgress = false;
