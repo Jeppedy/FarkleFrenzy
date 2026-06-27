@@ -1,4 +1,4 @@
-package com.farklefrenzy.farkle_frenzy
+package com.jeppedy.farklefrenzy
 
 import io.flutter.embedding.android.FlutterActivity
 
