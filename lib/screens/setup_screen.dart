@@ -34,7 +34,7 @@ class _SetupScreenState extends State<SetupScreen> {
       _playerCount = count;
       _nameControllers.clear();
       for (int i = 0; i < count; i++) {
-        _nameControllers.add(TextEditingController(text: 'Player ${i + 1}'));
+        _nameControllers.add(TextEditingController());
       }
       _showNames = true;
     });
@@ -163,8 +163,8 @@ class _SetupScreenState extends State<SetupScreen> {
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
-                          children: List.generate(7, (i) {
-                            final count = i + 2; // 2–8 players
+                          children: List.generate(5, (i) {
+                            final count = i + 3; // 3–7 players
                             final selected = _playerCount == count;
                             return GestureDetector(
                               onTap: () => _setPlayerCount(count),
@@ -237,17 +237,10 @@ class _SetupScreenState extends State<SetupScreen> {
                                 textCapitalization: TextCapitalization.words,
                                 decoration: InputDecoration(
                                   labelText: 'Player ${i + 1}',
-                                  prefixIcon: CircleAvatar(
-                                    radius: 14,
-                                    backgroundColor: _playerColors[i % _playerColors.length],
-                                    child: Text(
-                                      '${i + 1}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                                  hintText: 'Player ${i + 1}',
+                                  hintStyle: const TextStyle(
+                                    color: Colors.white38,
+                                    fontStyle: FontStyle.italic,
                                   ),
                                 ),
                                 validator: (v) {
