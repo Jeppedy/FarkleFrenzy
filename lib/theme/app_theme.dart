@@ -53,9 +53,10 @@ class AppTheme {
         foregroundColor: accentGold,
         elevation: 4,
         centerTitle: true,
+        toolbarHeight: 56,
         titleTextStyle: TextStyle(
           color: accentGold,
-          fontSize: 22,
+          fontSize: 28,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
         ),

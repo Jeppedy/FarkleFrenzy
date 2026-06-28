@@ -88,7 +88,8 @@ class _GameScreenState extends State<GameScreen>
               tooltip: 'New Game',
               onPressed: () => _confirmNewGame(context, game),
             ),
-            title: const Text('🎲 FARKLE FRENZY'),
+            title: const Text('🎲 FARKLE FRENZY',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
             actions: [
               IconButton(
                 icon: Icon(
@@ -498,7 +499,7 @@ class _ComboButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         splashColor: color.withValues(alpha: 0.4),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: color.withValues(alpha: 0.6)),
@@ -507,7 +508,7 @@ class _ComboButton extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 13,
+              fontSize: 16,
               fontWeight: FontWeight.w600,
               color: Colors.white,
               height: 1.2,
@@ -640,22 +641,22 @@ class _ActionButton extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18),
+              Icon(icon, size: 26),
               const SizedBox(width: 5),
               Text(label,
                   style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 1)),
+                      letterSpacing: 2)),
             ],
           ),
           // Fixed-height slot keeps both buttons identical regardless of sublabel
           SizedBox(
-            height: 16,
+            height: 22,
             child: sublabel.isNotEmpty
                 ? Text(sublabel,
                     style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 16,
                         color: dimmed ? Colors.white24 : Colors.white70))
                 : null,
           ),
