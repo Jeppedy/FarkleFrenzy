@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  # ─── Android APK ───────────────────────────────────────────────────────────
+  # ─── Android APK ──────────────────────────────────────────────────────────
   build-android:
     name: Android APK
     runs-on: ubuntu-latest
@@ -33,7 +33,7 @@ jobs:
 
       - name: Write key.properties
         run: |
-          cat > android/key.properties <<EOF
+          cat > android/key.properties << 'EOF'
           storePassword=${{ secrets.KEY_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=release
@@ -47,23 +47,20 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/app/outputs/flutter-apk/app-release.apk
-          name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
+          name: "Farkle Frenzy ${{ github.ref_name }}"
+          make_latest: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ─── Windows EXE ───────────────────────────────────────────────────────────
+  # ─── Windows EXE ──────────────────────────────────────────────────────────
   build-windows:
     name: Windows EXE
-    runs-on: windows-latest
+    runs-on: windows-2019        # ← THE FIX: VS 2019 = what Flutter 3.35.4 expects
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
 
       - uses: subosito/flutter-action@v2
         with:
@@ -78,8 +75,6 @@ jobs:
 
       - name: Build Windows
         run: flutter build windows --release
-        env:
-          CMAKE_GENERATOR: Ninja
 
       - name: Zip release folder
         shell: pwsh
@@ -92,7 +87,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: FarkleFrenzy-Windows.zip
-          name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
+          name: "Farkle Frenzy ${{ github.ref_name }}"
+          make_latest: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
