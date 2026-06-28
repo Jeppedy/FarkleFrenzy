@@ -89,7 +89,7 @@ class _GameScreenState extends State<GameScreen>
               onPressed: () => _confirmNewGame(context, game),
             ),
             title: const Text('🎲 FARKLE FRENZY',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
             actions: [
               IconButton(
                 icon: Icon(

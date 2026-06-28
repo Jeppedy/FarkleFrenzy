@@ -56,9 +56,9 @@ class AppTheme {
         toolbarHeight: 56,
         titleTextStyle: TextStyle(
           color: accentGold,
-          fontSize: 28,
+          fontSize: 20,
           fontWeight: FontWeight.bold,
-          letterSpacing: 1.5,
+          letterSpacing: 1.0,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
