@@ -72,19 +72,41 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
-      - name: Patch Flutter VS version detection
-        shell: pwsh
-        run: |
-          $file = "C:\hostedtoolcache\windows\flutter\stable-3.35.4-x64\flutter\packages\flutter_tools\lib\src\windows\visual_studio.dart"
-          $content = Get-Content $file -Raw
-          $old = "17 => 'Visual Studio 17 2022',"
-          $new = "17 => 'Visual Studio 17 2022'," + "`n      18 => 'Visual Studio 18 2026',"
-          $content = $content.Replace($old, $new)
-          Set-Content $file $content -NoNewline
-          Write-Host "Patched visual_studio.dart"
-
       - name: Flutter pub get
         run: flutter pub get
+
+      - name: Patch compiled Flutter snapshot for VS detection
+        shell: pwsh
+        run: |
+          $flutterRoot = "C:\hostedtoolcache\windows\flutter\stable-3.35.4-x64\flutter"
+          Write-Host "Flutter root: $flutterRoot"
+
+          $snapshotPath = "$flutterRoot\bin\cache\flutter_tools.snapshot"
+          if (Test-Path $snapshotPath) {
+            $bytes = [System.IO.File]::ReadAllBytes($snapshotPath)
+            $oldStr = [System.Text.Encoding]::UTF8.GetBytes("Visual Studio 16 2019")
+            $newStr = [System.Text.Encoding]::UTF8.GetBytes("Visual Studio 18 2026")
+
+            $patchCount = 0
+            for ($i = 0; $i -lt $bytes.Length - $oldStr.Length; $i++) {
+              $match = $true
+              for ($j = 0; $j -lt $oldStr.Length; $j++) {
+                if ($bytes[$i + $j] -ne $oldStr[$j]) { $match = $false; break }
+              }
+              if ($match) {
+                Write-Host "Found string at offset $i, patching..."
+                for ($j = 0; $j -lt $newStr.Length; $j++) {
+                  $bytes[$i + $j] = $newStr[$j]
+                }
+                $patchCount++
+              }
+            }
+            [System.IO.File]::WriteAllBytes($snapshotPath, $bytes)
+            Write-Host "Patched $patchCount occurrence(s) in snapshot"
+          } else {
+            Write-Host "Snapshot not found at $snapshotPath"
+            Get-ChildItem "$flutterRoot\bin\cache" -ErrorAction SilentlyContinue | Select-Object Name
+          }
 
       - name: Build Windows
         run: flutter build windows --release
