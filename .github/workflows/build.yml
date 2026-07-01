@@ -64,20 +64,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Find Visual Studio
-        shell: pwsh
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (Test-Path $vswhere) {
-            & $vswhere -all -format json | ConvertFrom-Json | ForEach-Object {
-              Write-Host "Found: $($_.displayName) at $($_.installationPath)"
-            }
-          } else {
-            Write-Host "vswhere not found"
-            Get-ChildItem "C:\Program Files\Microsoft Visual Studio" -ErrorAction SilentlyContinue
-            Get-ChildItem "C:\Program Files (x86)\Microsoft Visual Studio" -ErrorAction SilentlyContinue
-          }
-
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.4'
@@ -86,11 +72,19 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
+      - name: Patch Flutter VS version detection
+        shell: pwsh
+        run: |
+          $file = "C:\hostedtoolcache\windows\flutter\stable-3.35.4-x64\flutter\packages\flutter_tools\lib\src\windows\visual_studio.dart"
+          $content = Get-Content $file -Raw
+          $old = "17 => 'Visual Studio 17 2022',"
+          $new = "17 => 'Visual Studio 17 2022'," + "`n      18 => 'Visual Studio 18 2026',"
+          $content = $content.Replace($old, $new)
+          Set-Content $file $content -NoNewline
+          Write-Host "Patched visual_studio.dart"
+
       - name: Flutter pub get
         run: flutter pub get
-
-      - name: Flutter doctor
-        run: flutter doctor -v
 
       - name: Build Windows
         run: flutter build windows --release
