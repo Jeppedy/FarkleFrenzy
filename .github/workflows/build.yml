@@ -59,10 +59,16 @@ jobs:
   # ─── Windows EXE ──────────────────────────────────────────────────────────
   build-windows:
     name: Windows EXE
-    runs-on: windows-2019
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup MSVC (VS 2022)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          vsversion: '2022'
 
       - uses: subosito/flutter-action@v2
         with:
