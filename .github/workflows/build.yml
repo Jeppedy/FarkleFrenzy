@@ -6,7 +6,6 @@ on:
       - 'v*'
 
 jobs:
-  # ─── Android APK ──────────────────────────────────────────────────────────
   build-android:
     name: Android APK
     runs-on: ubuntu-latest
@@ -33,64 +32,25 @@ jobs:
 
       - name: Write key.properties
         run: |
-          cat > android/key.properties << 'EOF'
-          storePassword=${{ secrets.KEY_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=release
-          storeFile=release-key.jks
-          EOF
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=release\nstoreFile=release-key.jks\n' \
+            "${{ secrets.KEY_PASSWORD }}" \
+            "${{ secrets.KEY_PASSWORD }}" \
+            > android/key.properties
 
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/app/outputs/flutter-apk/app-release.apk
-          tag_name: ${{ github.ref_name }}
-          name: "Farkle Frenzy ${{ github.ref_name }}"
-          make_latest: true
-          fail_on_unmatched_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ─── Windows EXE ──────────────────────────────────────────────────────────
-  build-windows:
-    name: Windows EXE
-    runs-on: windows-2019        # ← THE FIX: VS 2019 = what Flutter 3.35.4 expects
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.35.4'
-          channel: stable
-
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build Windows
-        run: flutter build windows --release
-
-      - name: Zip release folder
-        shell: pwsh
+      - name: Rename APK
         run: |
-          Compress-Archive `
-            -Path "build\windows\x64\runner\Release\*" `
-            -DestinationPath "FarkleFrenzy-Windows.zip"
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/FarkleFrenzy-${{ github.ref_name }}.apk
 
-      - name: Upload Windows build to release
+      - name: Create release and upload APK
         uses: softprops/action-gh-release@v2
         with:
-          files: FarkleFrenzy-Windows.zip
           tag_name: ${{ github.ref_name }}
           name: "Farkle Frenzy ${{ github.ref_name }}"
-          make_latest: true
+          files: build/app/outputs/flutter-apk/FarkleFrenzy-${{ github.ref_name }}.apk
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
