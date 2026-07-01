@@ -6,6 +6,7 @@ on:
       - 'v*'
 
 jobs:
+  # ─── Android APK ──────────────────────────────────────────────────────────
   build-android:
     name: Android APK
     runs-on: ubuntu-latest
@@ -51,6 +52,45 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: "Farkle Frenzy ${{ github.ref_name }}"
           files: build/app/outputs/flutter-apk/FarkleFrenzy-${{ github.ref_name }}.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Windows EXE ──────────────────────────────────────────────────────────
+  build-windows:
+    name: Windows EXE
+    runs-on: windows-2019
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Zip release folder
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "build\windows\x64\runner\Release\*" `
+            -DestinationPath "FarkleFrenzy-Windows-${{ github.ref_name }}.zip"
+
+      - name: Upload Windows build to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Farkle Frenzy ${{ github.ref_name }}"
+          files: FarkleFrenzy-Windows-${{ github.ref_name }}.zip
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
