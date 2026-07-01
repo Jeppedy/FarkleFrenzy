@@ -64,11 +64,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup MSVC (VS 2022)
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-          vsversion: '2022'
+      - name: Find Visual Studio
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            & $vswhere -all -format json | ConvertFrom-Json | ForEach-Object {
+              Write-Host "Found: $($_.displayName) at $($_.installationPath)"
+            }
+          } else {
+            Write-Host "vswhere not found"
+            Get-ChildItem "C:\Program Files\Microsoft Visual Studio" -ErrorAction SilentlyContinue
+            Get-ChildItem "C:\Program Files (x86)\Microsoft Visual Studio" -ErrorAction SilentlyContinue
+          }
 
       - uses: subosito/flutter-action@v2
         with:
@@ -80,6 +88,9 @@ jobs:
 
       - name: Flutter pub get
         run: flutter pub get
+
+      - name: Flutter doctor
+        run: flutter doctor -v
 
       - name: Build Windows
         run: flutter build windows --release
