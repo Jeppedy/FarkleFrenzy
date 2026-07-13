@@ -5,14 +5,15 @@ import '../theme/app_theme.dart';
 import 'game_over_screen.dart';
 
 const List<Color> _playerColors = [
-  Color(0xFFE53935),
-  Color(0xFF1E88E5),
-  Color(0xFF43A047),
-  Color(0xFFFB8C00),
-  Color(0xFF8E24AA),
-  Color(0xFF00ACC1),
-  Color(0xFFFFB300),
-  Color(0xFF6D4C41),
+  Color(0xFFE53935), // red
+  Color(0xFF1E88E5), // blue
+  Color(0xFF43A047), // green
+  Color(0xFFFB8C00), // orange
+  Color(0xFF8E24AA), // purple
+  Color(0xFF00ACC1), // cyan
+  Color(0xFFFFB300), // amber
+  Color(0xFF6D4C41), // brown
+  Color(0xFFEC407A), // pink
 ];
 
 Color _colorFor(int index) => _playerColors[index % _playerColors.length];
@@ -217,23 +218,52 @@ class _PlayerHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Leader status line
+          // Leader status line — current standing + projected standing if banked
           if (!allZero) ...[
-            Text(
-              leaderDiff > 0
-                  ? 'Current leader by $leaderDiff pts'
-                  : leaderDiff == 0
-                      ? 'Tied for the lead'
-                      : '${(-leaderDiff)} pts behind the leader',
-              style: TextStyle(
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: leaderDiff > 0
-                    ? AppTheme.accentGold
-                    : leaderDiff == 0
-                        ? Colors.white54
-                        : Colors.redAccent,
-              ),
+            Builder(
+              builder: (_) {
+                String phraseFor(int diff) {
+                  if (diff > 0) return 'leader by $diff pts';
+                  if (diff == 0) return 'tied for the lead';
+                  return '${-diff} pts behind the leader';
+                }
+
+                Color colorFor(int diff) {
+                  if (diff > 0) return AppTheme.accentGold;
+                  if (diff == 0) return Colors.white54;
+                  return Colors.redAccent;
+                }
+
+                final projectedDiff = (myScore + turnScore) - otherBest;
+
+                return Row(
+                  children: [
+                    Text(
+                      'Current: ${phraseFor(leaderDiff)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: colorFor(leaderDiff),
+                      ),
+                    ),
+                    if (turnScore > 0) ...[
+                      const Text('   →',
+                          style: TextStyle(fontSize: 11, color: Colors.white38)),
+                      Text(
+                        '  If Banked: ${phraseFor(projectedDiff)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w600,
+                          color: projectedDiff > leaderDiff
+                              ? Colors.greenAccent
+                              : colorFor(projectedDiff),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 4),
           ],
@@ -571,36 +601,7 @@ class _ActionBar extends StatelessWidget {
   }
 
   void _handleBust(BuildContext context) {
-    if (game.currentTurnScore > 0) {
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: AppTheme.surfaceCard,
-          title: const Text('💥 Bust?'),
-          content: Text(
-              'Lose ${game.currentTurnScore} pts and pass to the next player?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                game.bust();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.accentRed,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Bust!'),
-            ),
-          ],
-        ),
-      );
-    } else {
-      game.bust();
-    }
+    game.bust();
   }
 }
 
@@ -746,9 +747,7 @@ class _LeaderboardTab extends StatelessWidget {
               final canPassTo = !isActiveScorer;
 
               return GestureDetector(
-                onTap: canPassTo
-                    ? () => _confirmPass(context, originalIdx, p.name)
-                    : null,
+                onTap: canPassTo ? () => onPassTo(originalIdx) : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   margin: const EdgeInsets.only(bottom: 8),
@@ -869,38 +868,6 @@ class _LeaderboardTab extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  void _confirmPass(BuildContext context, int idx, String name) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surfaceCard,
-        title: Text('Pass to $name?'),
-        content: Text(
-          game.currentTurnScore > 0
-              ? 'Pass the dice to $name. They\'ll continue building on the current ${game.currentTurnScore} pts.'
-              : 'Pass the dice to $name. They\'ll start scoring from 0.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              onPassTo(idx);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.feltGreen,
-              foregroundColor: Colors.white,
-            ),
-            child: Text('Pass to $name'),
-          ),
-        ],
-      ),
     );
   }
 

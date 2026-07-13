@@ -163,8 +163,8 @@ class _SetupScreenState extends State<SetupScreen> {
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
-                          children: List.generate(5, (i) {
-                            final count = i + 3; // 3–7 players
+                          children: List.generate(7, (i) {
+                            final count = i + 3; // 3–9 players
                             final selected = _playerCount == count;
                             return GestureDetector(
                               onTap: () => _setPlayerCount(count),

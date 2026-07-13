@@ -4,14 +4,15 @@ import '../models/game_model.dart';
 import '../theme/app_theme.dart';
 
 const List<Color> _playerColors = [
-  Color(0xFFE53935),
-  Color(0xFF1E88E5),
-  Color(0xFF43A047),
-  Color(0xFFFB8C00),
-  Color(0xFF8E24AA),
-  Color(0xFF00ACC1),
-  Color(0xFFFFB300),
-  Color(0xFF6D4C41),
+  Color(0xFFE53935), // red
+  Color(0xFF1E88E5), // blue
+  Color(0xFF43A047), // green
+  Color(0xFFFB8C00), // orange
+  Color(0xFF8E24AA), // purple
+  Color(0xFF00ACC1), // cyan
+  Color(0xFFFFB300), // amber
+  Color(0xFF6D4C41), // brown
+  Color(0xFFEC407A), // pink
 ];
 
 class GameOverScreen extends StatelessWidget {
